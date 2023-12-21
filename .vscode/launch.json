@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'chat-server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=chat-server",
+                    "--package=chat-server"
+                ],
+                "filter": {
+                    "name": "chat-server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'chat-client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=chat-client",
+                    "--package=chat-client"
+                ],
+                "filter": {
+                    "name": "chat-client",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

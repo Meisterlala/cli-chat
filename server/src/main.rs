@@ -1,6 +1,5 @@
 use std::net::TcpListener;
 use std::thread::spawn;
-use tungstenite::accept;
 
 /// A WebSocket echo server
 fn main () {
