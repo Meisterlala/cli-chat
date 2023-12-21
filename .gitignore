@@ -1,1 +1,5 @@
+# Ignore binary files
 /target
+
+# Ignore package version
+Cargo.lock
