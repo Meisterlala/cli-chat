@@ -37,12 +37,14 @@ impl TUI {
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
-        self.terminal.resize(Rect {
-            x: 0,
-            y: 0,
-            width,
-            height,
-        });
+        self.terminal
+            .resize(Rect {
+                x: 0,
+                y: 0,
+                width,
+                height,
+            })
+            .unwrap();
     }
 
     fn draw(frame: &mut Frame, model: &Model) {
@@ -50,7 +52,7 @@ impl TUI {
         frame.render_widget(
             Paragraph::new(format!(
                 "Counter: {}",
-                model.counter.load(std::sync::atomic::Ordering::SeqCst)
+                model.counter
             ))
             .white()
             .on_blue(),
@@ -62,7 +64,7 @@ impl TUI {
             .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
             .split(frame.size());
 
-        let t = &model.text_area.lock().unwrap();
+        let t = &model.text_area;
         let avaliable_space = (layout[1].height - 2) * (layout[1].width - 2);
 
         let text = if avaliable_space < t.len() as u16 {
@@ -82,6 +84,31 @@ impl TUI {
                 .block(block),
             layout[1],
         );
+
+        // Render all messages line by line alligned to bottom
+        let messages = model
+            .messages
+            .iter()
+            .rev()
+            .take((layout[0].height - 2) as usize);
+        let mut y = layout[0].bottom() - 1;
+        for message in messages {
+            for line in message.message.lines() {
+                frame.render_widget(
+                    Paragraph::new(format!("{}: {}", message.username, line))
+                        .white()
+                        .on_blue()
+                        .wrap(Wrap { trim: true }),
+                    Rect {
+                        x: layout[0].left() + 1,
+                        y,
+                        width: layout[0].width - 2,
+                        height: 1,
+                    },
+                );
+                y -= 1;
+            }
+        }
     }
 
     /// Enter raw mode and the alternate screen

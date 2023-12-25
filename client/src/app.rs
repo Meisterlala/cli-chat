@@ -1,11 +1,17 @@
-use std::sync::{atomic, Mutex};
+use std::{
+    collections::VecDeque,
+    sync::{atomic, Arc, Mutex},
+};
 
+use futures_util::{select, FutureExt};
 use log::info;
 use ratatui::widgets::RenderDirection;
+use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
     input::EventHandler,
-    model::Model,
+    model::{ChatMessage, Model},
     tui::{TUIMessage, TUI},
     websocket::Websocket,
     Event,
@@ -16,6 +22,7 @@ pub struct Application {
     pub input: EventHandler,
     pub tui: TUI,
     pub model: Model,
+    pub ws: Websocket,
 }
 
 impl Application {
@@ -29,17 +36,14 @@ impl Application {
             tui: TUI::new(),
             input: EventHandler::new(),
             model: Model::default(),
+            ws: Websocket::loopback(),
         }
     }
 
     pub async fn run(mut self) -> anyhow::Result<()> {
-        let mut ws = Websocket::new(&self.url).await;
+        info!("Starting Application");
 
-        let echo_thread = tokio::spawn(async move {
-            while let Ok(msg) = ws.recieve().await {
-                info!("Received: {}", msg.trim());
-            }
-        });
+        self.ws = Websocket::connect(&self.url).await.unwrap();
 
         let render_thread = tokio::spawn(async move {
             loop {
@@ -48,7 +52,18 @@ impl Application {
                     None
                 });
 
-                let event = self.input.next().await;
+                let event = select! {
+                    msg = self.input.next().fuse() => {
+                        msg
+                    }
+                    msg = self.ws.recieve().fuse() => {
+                        Event::ReciveMessage(ChatMessage {
+                            username: "other person".to_string(),
+                            message: msg.unwrap(),
+                        })
+                    }
+                };
+
                 match event {
                     Event::Quit => {
                         break;
@@ -61,7 +76,6 @@ impl Application {
         });
 
         tokio::select! {
-            _ = echo_thread => info!("Echo thread exited"),
             _ = render_thread => info!("Render thread exited"),
         }
 
@@ -73,12 +87,10 @@ impl Application {
         match event {
             Event::Input(c) => match c {
                 'c' => {
-                    self.model
-                        .counter
-                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    self.model.counter += 1;
                 }
                 _ => {
-                    self.model.text_area.lock().unwrap().push(c);
+                    self.model.text_area.push(c);
                 }
             },
             Event::Refresh => {}
@@ -88,9 +100,20 @@ impl Application {
             Event::Resize { width, height } => {
                 self.tui.resize(width, height);
             }
-            Event::Send => {}
+            Event::ReciveMessage(msg) => {
+                self.model.messages.push(msg);
+            }
+            Event::Send => {
+                let txt = self.model.text_area.clone();
+                self.model.text_area.clear();
+                self.update(Event::ReciveMessage(ChatMessage {
+                    username: "me".to_string(),
+                    message: txt.clone(),
+                }));
+                self.ws.send(txt).unwrap();
+            }
             Event::Backspace => {
-                self.model.text_area.lock().unwrap().pop();
+                self.model.text_area.pop();
             }
         };
     }

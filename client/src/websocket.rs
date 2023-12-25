@@ -5,49 +5,57 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 pub struct Websocket {
-    pub url: String,
-    socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    pub read: tokio::sync::mpsc::UnboundedReceiver<String>,
+    pub write: tokio::sync::mpsc::UnboundedSender<String>,
 }
 
 impl Websocket {
-    pub async fn new(url: &str) -> Self {
-        let (ws_stream, response) = tokio_tungstenite::connect_async(url)
-            .await
-            .unwrap_or_else(|_| panic!("Failed to connect to websocket: {}", url));
-
-        info!("WebSocket handshake has been successfully completed");
-
+    pub fn loopback() -> Self {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
-            url: url.to_string(),
-            socket: ws_stream,
+            read: rx,
+            write: tx,
         }
     }
 
-    pub async fn send(&mut self, msg: String) -> anyhow::Result<()> {
-        self.socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(msg))
-            .await?;
+    pub async fn connect(url: &str) -> Result<Self> {
+        let (ws_stream, response) = tokio_tungstenite::connect_async(url).await?;
+
+        info!("WebSocket handshake has been successfully completed");
+
+        let (tx_read, rx_read) = tokio::sync::mpsc::unbounded_channel();
+        let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel();
+
+        tokio::spawn(async move {
+            let (mut ws_write, mut ws_read) = ws_stream.split();
+
+            loop {
+                tokio::select! {
+                    Some(msg) = rx_write.recv() => {
+                        ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await.unwrap();
+                    }
+                    Some(msg) = ws_read.next() => {
+                        let msg = msg.unwrap().into_text().expect("Failed to convert message to text");
+                        tx_read.send(msg).unwrap();
+                    }
+                }
+            }
+        });
+
+        Ok(Self {
+            read: rx_read,
+            write: tx_write,
+        })
+    }
+
+    pub fn send(&mut self, msg: String) -> anyhow::Result<()> {
+        self.write.send(msg).unwrap();
         Ok(())
     }
 
     pub async fn recieve(&mut self) -> anyhow::Result<String> {
-        let msg = self.socket.next().await;
-        let msg = msg.expect("Failed to recieve message");
-        let msg = msg.expect("Failed to recieve message");
-        let msg = msg.into_text().expect("Failed to convert message to text");
+        let msg = self.read.recv().await.unwrap();
         Ok(msg)
-    }
-
-    async fn reconnect(&mut self) -> anyhow::Result<()> {
-        let (ws_stream, response) = tokio_tungstenite::connect_async(&self.url)
-            .await
-            .expect(&format!("Failed to connect to websocket: {}", self.url));
-
-        info!("WebSocket handshake has been successfully completed");
-
-        self.socket = ws_stream;
-
-        Ok(())
     }
 
     pub fn status(&self) -> Result<()> {

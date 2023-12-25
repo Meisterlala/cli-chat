@@ -1,3 +1,5 @@
+use model::ChatMessage;
+
 pub mod app;
 pub mod input;
 pub mod model;
@@ -11,4 +13,5 @@ pub enum Event {
     Resize { width: u16, height: u16 },
     Send,
     Backspace,
+    ReciveMessage(ChatMessage),
 }

@@ -45,7 +45,7 @@
             "args": [],
             "cwd": "${workspaceFolder}",
             "env": {
-                "RUST_LOG": "chat_client=debug",
+                "RUST_LOG": "debug",
                 "RUST_BACKTRACE": "1",
             },
             "stdio": [
