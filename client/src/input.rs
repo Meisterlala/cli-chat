@@ -1,6 +1,6 @@
-use crossterm::event::{EventStream, KeyCode, KeyEvent};
+use crossterm::event::{EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use futures_util::{FutureExt, StreamExt};
-use log::error;
+use log::{debug, error, info};
 use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::Event;
@@ -40,10 +40,24 @@ impl EventHandler {
 
     /// Handle an event from the terminal
     fn handle_event(event: crossterm::event::Event) -> Option<Event> {
+        use crossterm::event::Event as CEvent;
+
         match event {
-            crossterm::event::Event::Key(KeyEvent { code, .. }) => Self::handle_key(code),
-            crossterm::event::Event::Resize(width, height) => Some(Event::Resize { width, height }),
-            _ => None,
+            CEvent::Key(KeyEvent {
+                code: KeyCode::Char('c'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            }) => Some(Event::Quit),
+            CEvent::Resize(width, height) => Some(Event::Resize { width, height }),
+            CEvent::Key(KeyEvent {
+                code,
+                kind: KeyEventKind::Press,
+                ..
+            }) => Self::handle_key(code),
+            e => {
+                debug!("Unhandled event: {:?}", e);
+                None
+            }
         }
     }
 
@@ -51,6 +65,8 @@ impl EventHandler {
     fn handle_key(key: KeyCode) -> Option<Event> {
         match key {
             KeyCode::Esc => Some(Event::Quit),
+            KeyCode::Enter => Some(Event::Send),
+            KeyCode::Backspace => Some(Event::Backspace),
             KeyCode::Char(c) => Some(Event::Input(c)),
             _ => None,
         }

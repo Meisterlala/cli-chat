@@ -8,7 +8,8 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--package=chat-server"
+                    "--package=chat-server",
+                    "--bin=chat-server"
                 ],
                 "filter": {
                     "name": "chat-server",
@@ -20,6 +21,10 @@
                 null,
                 "${workspaceFolder}/server.log",
             ],
+            "env": {
+                "RUST_LOG": "chat_server=debug",
+                "RUST_BACKTRACE": "1",
+            },
             "cwd": "${workspaceFolder}",
         },
         {
@@ -30,20 +35,24 @@
                 "args": [
                     "build",
                     "--package=chat-client",
+                    "--bin=chat-client"
                 ],
                 "filter": {
                     "name": "chat-client",
                     "kind": "bin"
-                }
+                },
             },
             "args": [],
             "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "chat_client=debug",
+                "RUST_BACKTRACE": "1",
+            },
             "stdio": [
                 null,
                 null,
                 "${workspaceFolder}/client.log",
             ],
-            "terminal": "external",
         }
     ]
 }

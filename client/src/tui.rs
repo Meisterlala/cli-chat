@@ -1,81 +1,56 @@
 use crossterm::{
-    event::{self, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    prelude::{CrosstermBackend, Stylize, Terminal},
+    prelude::{CrosstermBackend, Stylize, Terminal as RatatuiTerminal},
     symbols::block,
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
-use std::{
-    fmt::format,
-    io::{stdout, Result, Stdout},
-    sync::Arc,
-};
-use tokio::{select, sync::mpsc};
+use std::io::{stdout, Result, Stdout};
 
-use crate::{input, state::State, Event};
+use crate::model::Model;
 
-use log::{debug, error};
+use log::debug;
 
+type Terminal = RatatuiTerminal<CrosstermBackend<Stdout>>;
 pub struct TUI {
-    state: Arc<State>,
+    pub terminal: Terminal,
+}
+
+pub enum TUIMessage {
+    Resize { width: u16, height: u16 },
 }
 
 impl TUI {
-    pub fn new(state: Arc<State>) -> Self {
-        Self { state }
+    pub fn new() -> Self {
+        let terminal =
+            Terminal::new(CrosstermBackend::new(stdout())).expect("Failed to connect to terminal");
+        Self { terminal }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        Self::initialize_panic_handler();
-        Self::enter()?;
-
-        let mut terminal =
-            Terminal::new(CrosstermBackend::new(stdout())).expect("Failed to connect to terminal");
-        terminal.clear()?;
-        terminal.show_cursor()?;
-
-        let mut events = input::EventHandler::new();
-
-        loop {
-            terminal.draw(|frame| self.draw(frame))?;
-
-            let next_event = events.next().await;
-
-            // Update State
-            // Get mut arc
-
-            self.state.update(&next_event);
-
-            // Have TUI handle event
-            match &next_event {
-                Event::Input(c) => {
-                    if let 'q' = c {
-                        break;
-                    }
-                }
-                Event::Refresh => {}
-                Event::Quit => break,
-                Event::Resize { width, height } => {
-                    terminal.resize(Rect::new(0, 0, *width, *height))?;
-                }
-            };
-        }
-
-        Self::exit()?;
+    pub async fn render(&mut self, model: &Model) -> anyhow::Result<()> {
+        self.terminal.draw(|frame| TUI::draw(frame, model))?;
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame) {
+    pub fn resize(&mut self, width: u16, height: u16) {
+        self.terminal.resize(Rect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        });
+    }
+
+    fn draw(frame: &mut Frame, model: &Model) {
         let area = frame.size();
         frame.render_widget(
             Paragraph::new(format!(
                 "Counter: {}",
-                self.state.counter.load(std::sync::atomic::Ordering::SeqCst)
+                model.counter.load(std::sync::atomic::Ordering::SeqCst)
             ))
             .white()
             .on_blue(),
@@ -87,7 +62,7 @@ impl TUI {
             .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
             .split(frame.size());
 
-        let t = &self.state.text_area.lock().unwrap();
+        let t = &model.text_area.lock().unwrap();
         let avaliable_space = (layout[1].height - 2) * (layout[1].width - 2);
 
         let text = if avaliable_space < t.len() as u16 {
@@ -110,9 +85,11 @@ impl TUI {
     }
 
     /// Enter raw mode and the alternate screen
-    fn enter() -> Result<()> {
+    pub fn enter(&mut self) -> Result<()> {
         stdout().execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
+        self.terminal.clear()?;
+        self.terminal.show_cursor()?;
         Ok(())
     }
 
@@ -125,7 +102,7 @@ impl TUI {
 
     /// Initialize a panic handler that exits raw mode and the alternate screen
     /// before aborting the program
-    fn initialize_panic_handler() {
+    pub fn initialize_panic_handler() {
         let original_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
             crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen)
