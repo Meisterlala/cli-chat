@@ -3,3 +3,6 @@
 
 # Ignore package version
 Cargo.lock
+
+# Logs
+*.log

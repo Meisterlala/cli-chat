@@ -1,0 +1,12 @@
+{
+    "logViewer.watch": [
+        {
+            "title": "Client",
+            "pattern": "client.log"
+        },
+        {
+            "title": "Server",
+            "pattern": "server.log"
+        }
+    ]
+}

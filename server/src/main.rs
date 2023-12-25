@@ -4,7 +4,7 @@ use std::thread::spawn;
 /// A WebSocket echo server
 fn main () {
     let server = TcpListener::bind("127.0.0.1:9001").unwrap();
-    for stream in server.incoming() {
+  /*   for stream in server.incoming() {
         spawn (move || {
             let mut websocket = accept(stream.unwrap()).unwrap();
             loop {
@@ -17,5 +17,5 @@ fn main () {
                 }
             }
         });
-    }
+    } */
 }

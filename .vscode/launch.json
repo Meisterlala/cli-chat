@@ -8,7 +8,6 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=chat-server",
                     "--package=chat-server"
                 ],
                 "filter": {
@@ -16,8 +15,12 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
-            "cwd": "${workspaceFolder}"
+            "stdio": [
+                null,
+                null,
+                "${workspaceFolder}/server.log",
+            ],
+            "cwd": "${workspaceFolder}",
         },
         {
             "type": "lldb",
@@ -26,8 +29,7 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=chat-client",
-                    "--package=chat-client"
+                    "--package=chat-client",
                 ],
                 "filter": {
                     "name": "chat-client",
@@ -35,7 +37,13 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "stdio": [
+                null,
+                null,
+                "${workspaceFolder}/client.log",
+            ],
+            "terminal": "external",
         }
     ]
 }

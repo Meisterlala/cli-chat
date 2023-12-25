@@ -4,48 +4,134 @@ use crossterm::{
     ExecutableCommand,
 };
 use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
     prelude::{CrosstermBackend, Stylize, Terminal},
-    widgets::Paragraph,
+    symbols::block,
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
 };
-use std::io::{stdout, Result, Stdout};
+use std::{
+    fmt::format,
+    io::{stdout, Result, Stdout},
+    sync::Arc,
+};
+use tokio::{select, sync::mpsc};
 
-pub fn init() -> Result<()> {
-    initialize_panic_handler();
-    stdout().execute(EnterAlternateScreen)?;
-    enable_raw_mode()?;
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    terminal.clear()?;
+use crate::{input, state::State, Event};
 
-    loop {
-        terminal.draw(|frame| {
-            let area = frame.size();
-            frame.render_widget(
-                Paragraph::new("Hello Ratatui! (press 'q' to quit)")
-                    .white()
-                    .on_blue(),
-                area,
-            );
-        })?;
+use log::{debug, error};
 
-        if event::poll(std::time::Duration::from_millis(16))? {
-            if let event::Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                    break;
-                }
-            }
-        }
-    }
-
-    stdout().execute(LeaveAlternateScreen)?;
-    disable_raw_mode()?;
-    Ok(())
+pub struct TUI {
+    state: Arc<State>,
 }
 
-pub fn initialize_panic_handler() {
-    let original_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen).unwrap();
-        crossterm::terminal::disable_raw_mode().unwrap();
-        original_hook(panic_info);
-    }));
+impl TUI {
+    pub fn new(state: Arc<State>) -> Self {
+        Self { state }
+    }
+
+    pub async fn run(&mut self) -> Result<()> {
+        Self::initialize_panic_handler();
+        Self::enter()?;
+
+        let mut terminal =
+            Terminal::new(CrosstermBackend::new(stdout())).expect("Failed to connect to terminal");
+        terminal.clear()?;
+        terminal.show_cursor()?;
+
+        let mut events = input::EventHandler::new();
+
+        loop {
+            terminal.draw(|frame| self.draw(frame))?;
+
+            let next_event = events.next().await;
+
+            // Update State
+            // Get mut arc
+
+            self.state.update(&next_event);
+
+            // Have TUI handle event
+            match &next_event {
+                Event::Input(c) => {
+                    if let 'q' = c {
+                        break;
+                    }
+                }
+                Event::Refresh => {}
+                Event::Quit => break,
+                Event::Resize { width, height } => {
+                    terminal.resize(Rect::new(0, 0, *width, *height))?;
+                }
+            };
+        }
+
+        Self::exit()?;
+        Ok(())
+    }
+
+    fn draw(&self, frame: &mut Frame) {
+        let area = frame.size();
+        frame.render_widget(
+            Paragraph::new(format!(
+                "Counter: {}",
+                self.state.counter.load(std::sync::atomic::Ordering::SeqCst)
+            ))
+            .white()
+            .on_blue(),
+            area,
+        );
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
+            .split(frame.size());
+
+        let t = &self.state.text_area.lock().unwrap();
+        let avaliable_space = (layout[1].height - 2) * (layout[1].width - 2);
+
+        let text = if avaliable_space < t.len() as u16 {
+            debug!("Text doesnt fits");
+            format!("{}{}", &t[..avaliable_space as usize - 1], block::FULL)
+        } else {
+            t.to_string()
+        };
+
+        let block = Block::default().borders(Borders::ALL).title("Input");
+
+        frame.render_widget(
+            Paragraph::new(format!("{text}_"))
+                .white()
+                .on_blue()
+                .wrap(Wrap { trim: true })
+                .block(block),
+            layout[1],
+        );
+    }
+
+    /// Enter raw mode and the alternate screen
+    fn enter() -> Result<()> {
+        stdout().execute(EnterAlternateScreen)?;
+        enable_raw_mode()?;
+        Ok(())
+    }
+
+    /// Exit raw mode and the alternate screen
+    pub fn exit() -> Result<()> {
+        stdout().execute(LeaveAlternateScreen)?;
+        disable_raw_mode()?;
+        Ok(())
+    }
+
+    /// Initialize a panic handler that exits raw mode and the alternate screen
+    /// before aborting the program
+    fn initialize_panic_handler() {
+        let original_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen)
+                .unwrap();
+            crossterm::terminal::disable_raw_mode().unwrap();
+            original_hook(panic_info);
+        }));
+    }
 }
