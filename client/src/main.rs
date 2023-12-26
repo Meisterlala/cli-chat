@@ -8,7 +8,7 @@ async fn main() {
     // Setup env_logger to write to stderr
     env_logger::init();
 
-    let app = Application::new("wss://echo.websocket.events");
+    let app = Application::new("ws://127.0.0.1:9001");
     app.run().await.unwrap();
 
     info!("Exiting");

@@ -16,13 +16,8 @@
                     "kind": "bin"
                 }
             },
-            "stdio": [
-                null,
-                null,
-                "${workspaceFolder}/server.log",
-            ],
             "env": {
-                "RUST_LOG": "chat_server=debug",
+                "RUST_LOG": "debug",
                 "RUST_BACKTRACE": "1",
             },
             "cwd": "${workspaceFolder}",
