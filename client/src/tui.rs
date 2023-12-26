@@ -50,12 +50,9 @@ impl TUI {
     fn draw(frame: &mut Frame, model: &Model) {
         let area = frame.size();
         frame.render_widget(
-            Paragraph::new(format!(
-                "Counter: {}",
-                model.counter
-            ))
-            .white()
-            .on_blue(),
+            Paragraph::new(format!("Counter: {}", model.counter))
+                .white()
+                .on_blue(),
             area,
         );
 
@@ -137,5 +134,11 @@ impl TUI {
             crossterm::terminal::disable_raw_mode().unwrap();
             original_hook(panic_info);
         }));
+    }
+}
+
+impl Default for TUI {
+    fn default() -> Self {
+        Self::new()
     }
 }

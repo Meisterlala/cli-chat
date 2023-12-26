@@ -1,7 +1,3 @@
-use std::sync::{atomic, Mutex};
-
-use tokio_tungstenite::tungstenite::Message;
-
 pub struct Model {
     pub counter: u32,
     pub text_area: String,

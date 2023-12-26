@@ -1,18 +1,10 @@
-use std::{
-    collections::VecDeque,
-    sync::{atomic, Arc, Mutex},
-};
-
 use futures_util::{select, FutureExt};
 use log::info;
-use ratatui::widgets::RenderDirection;
-use tokio::sync::mpsc;
-use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
     input::EventHandler,
     model::{ChatMessage, Model},
-    tui::{TUIMessage, TUI},
+    tui::TUI,
     websocket::Websocket,
     Event,
 };

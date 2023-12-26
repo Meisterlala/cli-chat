@@ -1,8 +1,6 @@
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
-use log::info;
-use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use log::{debug, error, info};
 
 pub struct Websocket {
     pub read: tokio::sync::mpsc::UnboundedReceiver<String>,
@@ -19,7 +17,7 @@ impl Websocket {
     }
 
     pub async fn connect(url: &str) -> Result<Self> {
-        let (ws_stream, response) = tokio_tungstenite::connect_async(url).await?;
+        let (ws_stream, _) = tokio_tungstenite::connect_async(url).await?;
 
         info!("WebSocket handshake has been successfully completed");
 
@@ -32,11 +30,21 @@ impl Websocket {
             loop {
                 tokio::select! {
                     Some(msg) = rx_write.recv() => {
+                        debug!("Sending message: {}", msg);
                         ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await.unwrap();
                     }
                     Some(msg) = ws_read.next() => {
-                        let msg = msg.unwrap().into_text().expect("Failed to convert message to text");
-                        tx_read.send(msg).unwrap();
+                        match msg {
+                            Ok(msg) => {
+                                let msg = msg.into_text().expect("Failed to convert message to text");
+                                debug!("Recieved message: {}", msg);
+                                tx_read.send(msg).unwrap();
+                            }
+                            Err(e) => {
+                                error!("Error reading from websocket: {}", e);
+                                break;
+                            }
+                        }
                     }
                 }
             }

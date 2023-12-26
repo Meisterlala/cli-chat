@@ -1,13 +1,13 @@
 use crossterm::event::{EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use futures_util::{FutureExt, StreamExt};
-use log::{debug, error, info};
+use log::{debug, error};
 use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::Event;
 
 pub struct EventHandler {
     channel: mpsc::UnboundedReceiver<Event>,
-    task: JoinHandle<()>,
+    _task: JoinHandle<()>,
 }
 
 impl EventHandler {
@@ -34,7 +34,7 @@ impl EventHandler {
 
         Self {
             channel: events_rx,
-            task,
+            _task: task,
         }
     }
 
