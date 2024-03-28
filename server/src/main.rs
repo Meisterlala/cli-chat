@@ -1,4 +1,4 @@
-use chat_server::websocket::Websocket;
+use chat_server::app::Application;
 use futures_util::FutureExt;
 use log::info;
 
@@ -15,14 +15,14 @@ async fn main() {
         port => format!("127.0.0.1:{}", port),
     };
 
-    let ws = Websocket::new(&adress);
+    let mut app = Application::new(&adress);
 
     info!("Started");
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             info!("Ctrl-C recieved");
         }
-        r = ws.serve().fuse() => {info!("Websocket task ended with: {:?}", r)},
+        r = app.run().fuse() => {info!("Websocket task ended with: {:?}", r)},
     }
 
     info!("Exiting");
