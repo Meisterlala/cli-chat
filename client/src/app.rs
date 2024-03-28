@@ -1,5 +1,5 @@
 use futures_util::{select, FutureExt};
-use log::info;
+use log::{error, info};
 
 use crate::{
     input::EventHandler,
@@ -11,6 +11,7 @@ use crate::{
 
 pub struct Application {
     pub url: String,
+    pub user_name: String,
     pub input: EventHandler,
     pub tui: TUI,
     pub model: Model,
@@ -18,24 +19,29 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(ws_url: &str) -> Self {
-        let mut t = TUI::new();
-        TUI::initialize_panic_handler();
-        t.enter().unwrap();
-
+    pub fn new(ws_url: &str, user_name: &str) -> Self {
         Self {
             url: ws_url.to_string(),
+            user_name: user_name.to_string(),
             tui: TUI::new(),
             input: EventHandler::new(),
-            model: Model::default(),
+            model: Model {
+                url: ws_url.to_string(),
+                username: user_name.to_string(),
+                ..Default::default()
+            },
             ws: Websocket::loopback(),
         }
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
+    pub async fn run(mut self) -> bool {
         info!("Starting Application");
 
-        self.ws = Websocket::connect(&self.url).await.unwrap();
+        // Wait for server start
+        self.ws = Self::wait_for_websocket(&self.url).await;
+
+        TUI::initialize_panic_handler();
+        self.tui.enter().unwrap();
 
         let render_thread = tokio::spawn(async move {
             loop {
@@ -49,16 +55,24 @@ impl Application {
                         msg
                     }
                     msg = self.ws.recieve().fuse() => {
-                        Event::ReciveMessage(ChatMessage {
-                            username: "other person".to_string(),
-                            message: msg.unwrap(),
-                        })
+                        // Cant recive message, restart
+                        if msg.is_err() {
+                            error!("Failed to recive message, restarting");
+                            Event::Restart
+                        // Deserialize message
+                        } else if let Some(msg) = ChatMessage::deserialize(&msg.unwrap()) {
+                            Event::ReciveMessage(msg)
+                        } else {
+                            continue;
+                        }
                     }
                 };
 
                 match event {
-                    Event::Quit => {
-                        break;
+                    Event::Quit | Event::Restart => {
+                        TUI::exit().unwrap();
+
+                        return event;
                     }
                     other => {
                         self.update(other);
@@ -68,19 +82,29 @@ impl Application {
         });
 
         tokio::select! {
-            _ = render_thread => info!("Render thread exited"),
+            e = render_thread => {
+                match e {
+                    Ok(Event::Quit) => {
+                        TUI::exit().unwrap();
+                        return false;
+                    }
+                    Ok(Event::Restart) => {
+                        TUI::exit().unwrap();
+                        info!("Connection lost");
+                        return true;
+                    }
+                    _ => {info!("Render thread exited")}
+                }
+            },
         }
 
-        info!("Exiting Application");
-        Ok(())
+        info!("Exiting UI");
+        false
     }
 
     pub fn update(&mut self, event: Event) {
         match event {
             Event::Input(c) => match c {
-                'c' => {
-                    self.model.counter += 1;
-                }
                 _ => {
                     self.model.text_area.push(c);
                 }
@@ -89,6 +113,9 @@ impl Application {
             Event::Quit => {
                 unreachable!("Quit event should be handled in run()");
             }
+            Event::Restart => {
+                unreachable!("Restart event should be handled in run()");
+            }
             Event::Resize { width, height } => {
                 self.tui.resize(width, height);
             }
@@ -96,17 +123,35 @@ impl Application {
                 self.model.messages.push(msg);
             }
             Event::Send => {
-                let txt = self.model.text_area.clone();
+                if self.model.text_area.is_empty() {
+                    return;
+                }
+                let msg = ChatMessage {
+                    username: self.user_name.clone(),
+                    message: self.model.text_area.clone(),
+                };
+
                 self.model.text_area.clear();
-                self.update(Event::ReciveMessage(ChatMessage {
-                    username: "me".to_string(),
-                    message: txt.clone(),
-                }));
-                self.ws.send(txt).unwrap();
+                self.ws.send(msg.serialize()).unwrap();
             }
             Event::Backspace => {
                 self.model.text_area.pop();
             }
         };
+    }
+
+    async fn wait_for_websocket(url: &str) -> Websocket {
+        loop {
+            let connection = Websocket::connect(url).await;
+            match connection {
+                Ok(c) => {
+                    return c;
+                }
+                Err(e) => {
+                    error!("Failed to connect to server: {}", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
     }
 }

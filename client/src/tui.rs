@@ -6,6 +6,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     prelude::{CrosstermBackend, Stylize, Terminal as RatatuiTerminal},
     symbols::block,
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
@@ -50,15 +51,18 @@ impl TUI {
     fn draw(frame: &mut Frame, model: &Model) {
         let area = frame.size();
         frame.render_widget(
-            Paragraph::new(format!("Counter: {}", model.counter))
-                .white()
-                .on_blue(),
+            Paragraph::new(format!(
+                "Chat Client, logged into {} as {}",
+                model.url, model.username
+            ))
+            .white()
+            .on_blue(),
             area,
         );
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
+            .constraints(vec![Constraint::Percentage(90), Constraint::Min(3)])
             .split(frame.size());
 
         let t = &model.text_area;
@@ -87,24 +91,32 @@ impl TUI {
             .messages
             .iter()
             .rev()
-            .take((layout[0].height - 2) as usize);
+            .take((layout[0].height - 1) as usize);
         let mut y = layout[0].bottom() - 1;
         for message in messages {
-            for line in message.message.lines() {
-                frame.render_widget(
-                    Paragraph::new(format!("{}: {}", message.username, line))
-                        .white()
-                        .on_blue()
-                        .wrap(Wrap { trim: true }),
-                    Rect {
-                        x: layout[0].left() + 1,
-                        y,
-                        width: layout[0].width - 2,
-                        height: 1,
-                    },
-                );
-                y -= 1;
-            }
+            let line = Line::from(vec![
+                if message.username == model.username {
+                    Span::styled(&message.username, ratatui::style::Style::default().bold())
+                } else {
+                    Span::styled(&message.username, ratatui::style::Style::default())
+                },
+                ": ".into(),
+                (&message.message).into(),
+            ]);
+
+            frame.render_widget(
+                Paragraph::new(line)
+                    .white()
+                    .on_blue()
+                    .wrap(Wrap { trim: true }),
+                Rect {
+                    x: layout[0].left() + 1,
+                    y,
+                    width: layout[0].width - 2,
+                    height: 1,
+                },
+            );
+            y -= 1;
         }
     }
 

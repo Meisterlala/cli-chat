@@ -23,7 +23,7 @@ impl EventHandler {
                 match event.await {
                     Some(Ok(event)) => {
                         if let Some(message) = Self::handle_event(event) {
-                            events_tx.send(message).unwrap();
+                            if events_tx.send(message).is_ok() {}
                         }
                     }
                     Some(Err(e)) => error!("Error: {:?}\r", e),
@@ -54,6 +54,10 @@ impl EventHandler {
                 kind: KeyEventKind::Press,
                 ..
             }) => Self::handle_key(code),
+            CEvent::Key(KeyEvent {
+                kind: KeyEventKind::Release,
+                ..
+            }) => None,
             e => {
                 debug!("Unhandled event: {:?}", e);
                 None

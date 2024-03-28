@@ -62,11 +62,9 @@ impl Websocket {
     }
 
     pub async fn recieve(&mut self) -> anyhow::Result<String> {
-        let msg = self.read.recv().await.unwrap();
-        Ok(msg)
-    }
-
-    pub fn status(&self) -> Result<()> {
-        Ok(())
+        match self.read.recv().await {
+            Some(msg) => Ok(msg),
+            None => Err(anyhow::anyhow!("Failed to recieve message")),
+        }
     }
 }

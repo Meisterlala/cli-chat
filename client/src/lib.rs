@@ -10,6 +10,7 @@ pub enum Event {
     Input(char),
     Refresh,
     Quit,
+    Restart,
     Resize { width: u16, height: u16 },
     Send,
     Backspace,

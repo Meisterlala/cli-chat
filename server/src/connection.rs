@@ -14,23 +14,29 @@ impl Connection {
         let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel();
 
         let t = tokio::spawn(async move {
+            let connected_to = stream.get_ref().peer_addr().unwrap().to_string();
             let (mut ws_write, mut ws_read) = stream.split();
 
             loop {
                 tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {
+                        debug!("Ctrl-C recieved, dropping connection to {}", connected_to);
+                        ws_write.send(tokio_tungstenite::tungstenite::Message::Close(None)).await.unwrap();
+                        break;
+                    }
                     Some(msg) = rx_write.recv() => {
-                        debug!("Sending message: {}", msg);
+                        debug!("<{}> Sending message: {}", connected_to, msg);
                         ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await.unwrap();
                     }
                     Some(msg) = ws_read.next() => {
                         match msg {
                             Ok(msg) => {
                                 let msg = msg.into_text().expect("Failed to convert message to text");
-                                debug!("Recieved message: {}", msg);
+                                debug!("<{}> Recieved message: {}", connected_to, msg);
                                 tx_read.send(msg).unwrap();
                             }
                             Err(e) => {
-                                error!("Error reading from websocket: {}", e);
+                                error!("<{}> Error reading from websocket: {}", connected_to, e);
                                 break;
                             }
                         }
@@ -55,6 +61,10 @@ impl Connection {
                     ws_write.send(msg).await.unwrap();
                 }
             }
+            ws_write
+                .send(tokio_tungstenite::tungstenite::Message::Close(None))
+                .await
+                .unwrap();
             debug!("Loopback closed")
         });
 
