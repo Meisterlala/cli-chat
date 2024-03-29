@@ -17,6 +17,15 @@ async fn main() {
         name => name,
     };
 
+    // Get Group to join
+    let mut group = String::new();
+    println!("Which group do you want to join (leave empty for default value 'general'): ");
+    std::io::stdin().read_line(&mut group).unwrap();
+    let group = match group.trim() {
+        "" => "general",
+        group => group,
+    };
+
     // Get Server Address
     let mut address = String::new();
     println!(
@@ -29,7 +38,7 @@ async fn main() {
     };
 
     // Run until the application returns false
-    while Application::new(address, name).run().await {
+    while Application::new(address, name, group).run().await {
         error!("Application Disconnected. Press any key to reconnect");
     }
 

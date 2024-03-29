@@ -52,8 +52,8 @@ impl TUI {
         let area = frame.size();
         frame.render_widget(
             Paragraph::new(format!(
-                "Chat Client, logged into {} as {}",
-                model.url, model.username
+                "Chat Client, logged into \"{}\" in the group \"{}\" as \"{}\"",
+                model.url, model.group, model.username
             ))
             .white()
             .on_blue(),

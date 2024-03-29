@@ -1,7 +1,9 @@
+#[derive(Default)]
 pub struct Model {
     pub url: String,
     pub username: String,
     pub text_area: String,
+    pub group: String,
     pub messages: Vec<ChatMessage>,
 }
 
@@ -21,16 +23,5 @@ impl ChatMessage {
         let username = parts.next()?.to_string();
         let message = parts.next()?.to_string();
         Some(Self { username, message })
-    }
-}
-
-impl Default for Model {
-    fn default() -> Self {
-        Self {
-            username: String::new(),
-            url: String::new(),
-            text_area: String::new(),
-            messages: vec![],
-        }
     }
 }

@@ -12,6 +12,7 @@ use crate::{
 pub struct Application {
     pub url: String,
     pub user_name: String,
+    pub group: String,
     pub input: EventHandler,
     pub tui: TUI,
     pub model: Model,
@@ -19,15 +20,17 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(ws_url: &str, user_name: &str) -> Self {
+    pub fn new(ws_url: &str, user_name: &str, group: &str) -> Self {
         Self {
             url: ws_url.to_string(),
             user_name: user_name.to_string(),
+            group: group.to_string(),
             tui: TUI::new(),
             input: EventHandler::new(),
             model: Model {
                 url: ws_url.to_string(),
                 username: user_name.to_string(),
+                group: group.to_string(),
                 ..Default::default()
             },
             ws: Websocket::loopback(),
@@ -42,6 +45,12 @@ impl Application {
 
         TUI::initialize_panic_handler();
         self.tui.enter().unwrap();
+
+        // Send group to server
+        if let Err(e) = self.ws.send(self.group.clone()) {
+            error!("Faled to inform server which group you are joining: {}", e);
+            return false;
+        }
 
         let render_thread = tokio::spawn(async move {
             loop {
@@ -104,11 +113,9 @@ impl Application {
 
     pub fn update(&mut self, event: Event) {
         match event {
-            Event::Input(c) => match c {
-                _ => {
-                    self.model.text_area.push(c);
-                }
-            },
+            Event::Input(c) => {
+                self.model.text_area.push(c);
+            }
             Event::Refresh => {}
             Event::Quit => {
                 unreachable!("Quit event should be handled in run()");

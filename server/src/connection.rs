@@ -1,11 +1,13 @@
+use std::sync::{Arc, Mutex};
+
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error};
 use tokio::net::TcpStream;
 
 pub struct Connection {
-    pub read: tokio::sync::mpsc::UnboundedReceiver<String>,
-    pub write: tokio::sync::mpsc::UnboundedSender<String>,
-    pub task: tokio::task::JoinHandle<()>,
+    pub sender: tokio::sync::mpsc::UnboundedSender<String>,
+    pub receiver: tokio::sync::mpsc::UnboundedReceiver<String>,
+    pub group: Arc<Mutex<Option<String>>>,
 }
 
 impl Connection {
@@ -13,18 +15,17 @@ impl Connection {
         let (tx_read, rx_read) = tokio::sync::mpsc::unbounded_channel();
         let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel();
 
-        let t = tokio::spawn(async move {
+        let group = Arc::new(Mutex::new(None));
+
+        let g_clone = group.clone();
+        tokio::spawn(async move {
             let connected_to = stream.get_ref().peer_addr().unwrap().to_string();
             let (mut ws_write, mut ws_read) = stream.split();
 
             loop {
                 tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {
-                        debug!("Ctrl-C recieved, dropping connection to {}", connected_to);
-                        ws_write.send(tokio_tungstenite::tungstenite::Message::Close(None)).await.unwrap();
-                        break;
-                    }
                     Some(msg) = rx_write.recv() => {
+
                         debug!("<{}> Sending message: {}", connected_to, msg);
                         ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await.unwrap();
                     }
@@ -33,7 +34,13 @@ impl Connection {
                             Ok(msg) => {
                                 let msg = msg.into_text().expect("Failed to convert message to text");
                                 debug!("<{}> Recieved message: {}", connected_to, msg);
-                                tx_read.send(msg).unwrap();
+
+                                if g_clone.lock().unwrap().is_none() {
+                                    *g_clone.lock().unwrap() = Some(msg.clone());
+                                    debug!("<{}> Joined group: {}", connected_to, msg);
+                                } else {
+                                    tx_read.send(msg).unwrap();
+                                }
                             }
                             Err(e) => {
                                 error!("<{}> Error reading from websocket: {}", connected_to, e);
@@ -44,46 +51,34 @@ impl Connection {
                 }
             }
         });
-
         Self {
-            read: rx_read,
-            write: tx_write,
-            task: t,
+            sender: tx_write,
+            receiver: rx_read,
+            group,
         }
     }
 
-    pub fn loopback(stream: tokio_tungstenite::WebSocketStream<TcpStream>) -> Self {
-        let task = tokio::spawn(async move {
-            let (mut ws_write, mut ws_read) = stream.split();
-            while let Some(Ok(msg)) = ws_read.next().await {
-                if !msg.is_close() && !msg.is_pong() && !msg.is_empty() {
-                    debug!("Resending: {}", msg);
-                    ws_write.send(msg).await.unwrap();
-                }
+    pub async fn wait_for_group(&self) -> String {
+        loop {
+            if let Some(group) = self.group.lock().unwrap().as_ref() {
+                return group.clone();
             }
-            ws_write
-                .send(tokio_tungstenite::tungstenite::Message::Close(None))
-                .await
-                .unwrap();
-            debug!("Loopback closed")
-        });
-
-        let (w, r) = tokio::sync::mpsc::unbounded_channel();
-        Self {
-            read: r,
-            write: w,
-            task,
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     }
 
-    pub fn send(&mut self, msg: String) -> anyhow::Result<()> {
-        self.write.send(msg)?;
+    pub fn send(
+        sender: &tokio::sync::mpsc::UnboundedSender<String>,
+        msg: String,
+    ) -> anyhow::Result<()> {
+        sender.send(msg)?;
         Ok(())
     }
 
-    pub async fn recieve(&mut self) -> anyhow::Result<String> {
-        let msg = self
-            .read
+    pub async fn recieve(
+        mut reciever: tokio::sync::mpsc::UnboundedReceiver<String>,
+    ) -> anyhow::Result<String> {
+        let msg = reciever
             .recv()
             .await
             .ok_or_else(|| anyhow::anyhow!("Failed to recieve message"))?;
