@@ -54,9 +54,7 @@ impl TUI {
             Paragraph::new(format!(
                 "Chat Client, logged into \"{}\" in the group \"{}\" as \"{}\"",
                 model.url, model.group, model.username
-            ))
-            .white()
-            .on_blue(),
+            )),
             area,
         );
 
@@ -79,8 +77,6 @@ impl TUI {
 
         frame.render_widget(
             Paragraph::new(format!("{text}_"))
-                .white()
-                .on_blue()
                 .wrap(Wrap { trim: true })
                 .block(block),
             layout[1],
@@ -105,10 +101,7 @@ impl TUI {
             ]);
 
             frame.render_widget(
-                Paragraph::new(line)
-                    .white()
-                    .on_blue()
-                    .wrap(Wrap { trim: true }),
+                Paragraph::new(line).wrap(Wrap { trim: true }),
                 Rect {
                     x: layout[0].left() + 1,
                     y,

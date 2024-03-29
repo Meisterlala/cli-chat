@@ -19,7 +19,7 @@ async fn main() {
 
     // Get Group to join
     let mut group = String::new();
-    println!("Which group do you want to join (leave empty for default value 'general'): ");
+    println!("Which group chat do you want to join (leave empty for default value 'general'): ");
     std::io::stdin().read_line(&mut group).unwrap();
     let group = match group.trim() {
         "" => "general",
