@@ -51,7 +51,7 @@ All messages are stored in a single sqlite database and table. The server uses t
 
 
 # Screenshots
-```bash
+```
 Chat Client, logged into "ws://127.0.0.1:9001" in the group "Hacker Chat" as "User 1"
 
 
