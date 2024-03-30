@@ -39,7 +39,7 @@ async fn main() {
 
     // Run until the application returns false
     while Application::new(address, name, group).run().await {
-        error!("Application Disconnected. Press any key to reconnect");
+        error!("Server Disconnected, press enter to try to reconnect");
     }
 
     TUI::exit().expect("Failed to reset terminal");

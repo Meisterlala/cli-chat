@@ -92,7 +92,10 @@ impl TUI {
         for message in messages {
             let line = Line::from(vec![
                 if message.username == model.username {
-                    Span::styled(&message.username, ratatui::style::Style::default().bold())
+                    Span::styled(
+                        &message.username,
+                        ratatui::style::Style::default().bold().on_dark_gray(),
+                    )
                 } else {
                     Span::styled(&message.username, ratatui::style::Style::default())
                 },

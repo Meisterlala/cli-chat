@@ -6,3 +6,6 @@ Cargo.lock
 
 # Logs
 *.log
+
+# Ignore db
+database.db*
