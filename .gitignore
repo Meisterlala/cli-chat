@@ -9,3 +9,10 @@ Cargo.lock
 
 # Ignore db
 database.db*
+
+# Selectivly allow documenation
+doc/**/*
+!doc/*
+!doc/**/*.pdf
+!doc/**/*.png
+!doc/**/*.tex

@@ -1,0 +1,162 @@
+\documentclass[a4paper]{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{listings}
+
+\usepackage{pgf-umlcd}
+\usepackage[english,ngerman]{babel}
+\usepackage[inkscapelatex=false]{svg}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{geometry}
+
+\selectlanguage{ngerman}
+
+\title{
+\LARGE{Client/Server Chat Anwendung mit WebSockets}  \\ 
+\normalsize{Dokumentation für "Projekt Informatik"}
+}
+\author{}
+\date{März 2024}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+
+\section{Einleitung}
+
+Diese Client/Server Chat anwendung wurde in der Programmiersprache Rust entwickelt. Der Client tritt einem Chat bei, indem er seinen Namen, eine Gruppe und die Serveradresse angibt. Die Gruppe bestimmt was für Nachrichten dem Client angezeigt werden und ermöglichen eine "private" unterhaltung in einer art Chat-Raum. Der Server verwaltet die Gruppen und leitet Nachrichten an die entsprechenden Clients weiter. Beim Verbinden von einem neuen Client werden alle vorherigen Nachrichten aus der Gruppe and den Client gesented. Die Kommunikation zwischen Client und Server erfolgt über WebSockets, und ist somit im lokalen Netzwerk oder über das Internet möglich.
+
+\pagebreak[4]
+
+\subsection{Ausführen}
+
+Die Binärdatein können direkt ausgeführt werden ohne irgendwelche dependencies. Oder das Projekt kann mit \texttt{cargo} kompiliert und ausgeführt werden. Zum Kompilieren wird Rust benötigt, welches auf dieser Seite heruntergeladen werden kann: \url{https://www.rust-lang.org/tools/install}.
+\begin{verbatim}
+    cargo run --release --bin chat-server
+    cargo run --release --bin chat-client
+\end{verbatim}
+
+\subsection{Protokol}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\textwidth]{protocol2.png}
+    \caption{Das Protokol}\label{fig:protocol}
+\end{figure}
+
+Der Client baut eine WebSocket-Verbindung zum Server auf und sendet einen Handshake. Danach wählt der Client eine Gruppe und sendet eine Nachricht an den Server.
+Der Server sendet alle gespeicherten Nachrichten in der Gruppe an den Client. Wenn der Server eine Nachricht von einem Client empfängt, leitet er diese an alle anderen Clients in der Gruppe weiter.
+
+
+\subsection{Bibliotheken}
+
+Das Projekt verwendet die folgenden Bibliotheken:
+
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item \texttt{tokio} für asynchrone Operationen und Multithreading
+    \item \texttt{tokio-tungstenite} für die WebSocket-Kommunikation
+    \item \texttt{sqlx} für die Datenbankanbindung
+    \item \texttt{ratatui} für die Benutzerschnittstelle
+    \item \texttt{crossterm} für die Eingabeverarbeitung
+    \item \texttt{env\_logger} für das Logging
+\end{itemize}
+
+\section{Client}
+
+\subsection{main.rs}
+
+Die Datei \texttt{main.rs} enthält die Hauptfunktion des Chat-Clients. Sie startet die Anwendung, initialisiert den Logger, erfasst den Benutzernamen, die Gruppe und die Serveradresse über die Standardeingabe und führt die Anwendung aus. Wenn die Anwendung eine Verbindung zum Server verliert, wird eine Fehlermeldung ausgegeben.
+
+\subsection{app.rs}
+
+Die \texttt{Application}-Klasse ist verantwortlich für die Verwaltung der Anwendung, die WebSocket-Kommunikation, die Benutzerschnittstelle und das Modell. Sie enthält Informationen über die URL des Websockets, den Benutzernamen, die Gruppe, die Eingabeverarbeitung, die Benutzerschnittstelle (TUI), das Datenmodell und den WebSocket.
+
+
+\subsection{input.rs}
+
+Die Datei \texttt{input.rs} implementiert die \texttt{EventHandler}-Struktur, die für die Verarbeitung von Eingabeveranstaltungen im Terminal zuständig ist. Sie verwendet die \texttt{crossterm}-Bibliothek, um Eingabeveranstaltungen zu verarbeiten.
+
+Die \texttt{EventHandler}-Struktur erstellt einen Kanal (\texttt{mpsc}), um Ereignisse an den Hauptthread zu senden, und startet einen Thread, um Ereignisse aus dem Terminal zu lesen. Dieser Thread verarbeitet Tastatureingaben und gibt entsprechende Ereignisse zurück, wie z.B. \texttt{Quit} (Beenden), \texttt{Send} (Senden), \texttt{Backspace} (Rücktaste), und \texttt{Input} (Eingabe). Die \texttt{next}-Methode wartet auf das nächste Ereignis und gibt es zurück.
+
+
+\subsection{model.rs und tui.rs}
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=0.5\textwidth]{ELM.pdf}
+    \caption{Die Elm Architektur}\label{fig:elm}
+\end{figure}
+
+Die \texttt{Model}-Struktur entspricht dem Modell in der Elm-Architektur. Sie speichert Informationen über die URL des Websockets, den Benutzernamen, die aktuelle Eingabe im Textbereich, die Gruppe und die empfangenen Nachrichten. Ähnlich wie in Elm wird das Modell als einziger, unveränderbarer Zustand betrachtet, der die gesamte Anwendungsdaten enthält.
+
+Die \texttt{ChatMessage}-Struktur repräsentiert eine einzelne Chat-Nachricht und implementiert Methoden zum Serialisieren und Deserialisieren.
+
+Die \texttt{TUI}-Struktur ist für das Rendering der Benutzerschnittstelle verantwortlich. Sie verwendet die \texttt{ratatui}-Bibliothek, um Textelemente und Widgets anzuzeigen. Ähnlich wie in Elm wird die Benutzerschnittstelle in einem funktionalen Stil gerendert, wobei die render-Methode die Darstellung des aktuellen Modells auf dem Bildschirm steuert.
+
+
+\subsection{websocket.rs} \label{ws_client}
+
+Die Struktur \texttt{Websocket} repräsentiert eine WebSocket-Verbindung. Sie enthält Kanäle zum Lesen und Schreiben von Nachrichten mit Asyncronem Code. Sobald eine neue Nachricht empfangen wird, wird diese über einen Kanal and den Hauptthread gesendet mithilfe der \texttt{recive} Methode. Das senden von Nachrichten erfolgt in einem seperaten Thread.
+
+
+\section{Server}
+
+
+\subsection{main.rs}
+
+Die Datei \texttt{main.rs} enthält die Hauptfunktion des Chat-Servers. Sie initialisiert die Anwendung, konfiguriert das Logging und fragt den Benutzer nach dem Server-Port. Falls der Benutzer keinen Port eingibt, wird der Standardport '9001' verwendet.
+
+\subsection{app.rs}
+
+
+
+Die Datei \texttt{app.rs} enthält die Implementierung der Anwendungslogik für den Chat-Server. Sie definiert die Struktur \texttt{Application}, die die zentrale Anwendung darstellt. Diese Struktur verwaltet die Verbindungen zu Clients, die Datenbankverbindung und koordiniert die Kommunikation zwischen den Clients über WebSockets.
+
+\begin{itemize}
+    \item Die Struktur \texttt{Application} enthält Felder für die Serveradresse (\texttt{adress}), die Verbindungen zu den Clients (\texttt{connections}) und die Datenbankverbindung (\texttt{db}).
+    \item Die Methode \texttt{new} erstellt eine neue Anwendungsinstanz mit der angegebenen Serveradresse.
+    \item Die Methode \texttt{run} führt die Anwendungslogik aus, indem sie eine Verbindung zur Datenbank herstellt, Websocket-Verbindungen akzeptiert und eingehende Nachrichten von den Clients verarbeitet.
+    \item Die Methode \texttt{on\_connection} wird aufgerufen, wenn eine neue Verbindung zu einem Client hergestellt wird. Sie behandelt das Lesen und Senden von Nachrichten sowie das Speichern von Nachrichten in der Datenbank.
+\end{itemize}
+
+\subsection{connection.rs}
+
+Wandelt eine WebSocket-Verbindung um in eine \texttt{Connection}-Struktur, die sicherstellt, dass dem Protokol in der Abbildung \ref{fig:protocol} gefolgt wird.
+
+\subsection{websocket.rs}
+
+Siehe: \ref{ws_client} Client \texttt{websocket.rs}
+
+
+\subsection{database.rs}
+
+
+\begin{verbatim}
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY,
+        group_name TEXT NOT NULL,
+        username TEXT NOT NULL,
+        message TEXT NOT NULL
+    )
+\end{verbatim}
+
+
+Die Datei \texttt{database.rs} enthält Funktionen zur Verwaltung der SQLite-Datenbank.
+
+
+
+
+\begin{itemize}
+    \item Die Funktion \texttt{establish\_connection} erstellt eine Verbindung zur SQLite-Datenbank die von mehreren Threads geteilt werden kann.
+    \item Die Funktion \texttt{insert\_message} fügt eine neue Nachricht in die Datenbank ein.
+    \item Die Funktion \texttt{get\_messages} ruft Nachrichten aus der Datenbank ab, die einer bestimmten Gruppe zugeordnet sind.
+\end{itemize}
+
+
+\end{document}
+
+
