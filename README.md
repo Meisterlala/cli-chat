@@ -1,7 +1,7 @@
 # Chat Client and Server
 a very simple IRC clone using websockets and sqlite
 
-You can read full german in death documentation [here](docs/german/main.pdf)
+You can read full german in death documentation [here](doc/german/main.pdf)
 
 
 ## What does it do?
