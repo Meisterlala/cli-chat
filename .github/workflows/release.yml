@@ -12,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
+        packages: [chat_client, chat_server]
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
@@ -20,6 +21,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           RUSTTARGET: ${{ matrix.target }}
+          SRC_DIR: ${{ matrix.packages }}
           EXTRA_FILES: "README.md"
           MINIFY: "true"
           
