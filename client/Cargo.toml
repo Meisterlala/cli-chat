@@ -11,7 +11,7 @@ tokio-tungstenite = { version = "0.21.0", features = [
 ] } # Async WebSocket
 
 # Terminal output
-ratatui = "0.25"
+ratatui = "0.29"
 crossterm = { version = "0.29", features = ["event-stream"] }
 
 # Error handling
