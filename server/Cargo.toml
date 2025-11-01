@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 futures-util = "0.3.29" # Utilities for async programming
 tokio = { version = "1.35.1", features = ["full"] } # Async runtime
-tokio-tungstenite = { version = "0.21.0", features = [
+tokio-tungstenite = { version = "0.28.0", features = [
     "native-tls",
 ] } # Async WebSocket
 
