@@ -13,7 +13,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(stream: tokio_tungstenite::WebSocketStream<TcpStream>) -> Self {
         let (tx_read, rx_read) = tokio::sync::mpsc::unbounded_channel();
-        let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel();
+        let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel::<String>();
 
         let group = Arc::new(Mutex::new(None));
 
@@ -27,12 +27,12 @@ impl Connection {
                     Some(msg) = rx_write.recv() => {
 
                         debug!("<{}> Sending message: {}", connected_to, msg);
-                        ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await.unwrap();
+                        ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg.into())).await.unwrap();
                     }
                     Some(msg) = ws_read.next() => {
                         match msg {
                             Ok(msg) => {
-                                let msg = msg.into_text().expect("Failed to convert message to text");
+                                let msg = msg.into_text().expect("Failed to convert message to text").to_string();
                                 debug!("<{}> Recieved message: {}", connected_to, msg);
 
                                 if g_clone.lock().unwrap().is_none() {
