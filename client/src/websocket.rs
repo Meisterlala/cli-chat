@@ -22,7 +22,7 @@ impl Websocket {
         info!("WebSocket handshake has been successfully completed");
 
         let (tx_read, rx_read) = tokio::sync::mpsc::unbounded_channel();
-        let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel();
+        let (tx_write, mut rx_write) = tokio::sync::mpsc::unbounded_channel::<String>();
 
         tokio::spawn(async move {
             let (mut ws_write, mut ws_read) = ws_stream.split();
@@ -31,12 +31,12 @@ impl Websocket {
                 tokio::select! {
                     Some(msg) = rx_write.recv() => {
                         debug!("Sending message: {}", msg);
-                        ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await.unwrap();
+                        ws_write.send(tokio_tungstenite::tungstenite::Message::Text(msg.into())).await.unwrap();
                     }
                     Some(msg) = ws_read.next() => {
                         match msg {
                             Ok(msg) => {
-                                let msg = msg.into_text().expect("Failed to convert message to text");
+                                let msg = msg.into_text().expect("Failed to convert message to text").to_string();
                                 debug!("Recieved message: {}", msg);
                                 tx_read.send(msg).unwrap();
                             }
